@@ -1,0 +1,25 @@
+# Dependency & build artifacts
+backend/vendor/
+frontend/node_modules/
+frontend/dist/
+
+# Environment files (JANGAN pernah di-commit, berisi API key & password)
+.env
+backend/.env
+frontend/.env
+
+# Laravel
+backend/storage/logs/*.log
+backend/storage/framework/cache/*
+backend/storage/framework/sessions/*
+backend/storage/framework/views/*
+backend/storage/app/private/*
+backend/bootstrap/cache/*.php
+backend/database/database.sqlite
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.pdf

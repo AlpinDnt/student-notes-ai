@@ -1,0 +1,110 @@
+version: "3.9"
+
+services:
+  # ==========================================================
+  # BACKEND - Laravel (PHP-FPM)
+  # ==========================================================
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sna_app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./backend:/var/www/html
+      - ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+    environment:
+      - PHP_IDE_CONFIG=serverName=Docker
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - sna_network
+
+  # ==========================================================
+  # WEB SERVER - Nginx (reverse proxy ke PHP-FPM)
+  # ==========================================================
+  web:
+    image: nginx:1.27-alpine
+    container_name: sna_web
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:80"
+    volumes:
+      - ./backend:/var/www/html
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
+    networks:
+      - sna_network
+
+  # ==========================================================
+  # DATABASE - MariaDB
+  # ==========================================================
+  db:
+    image: mariadb:11.4
+    container_name: sna_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-student_notes_ai}
+      MYSQL_USER: ${DB_USERNAME:-sna_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-sna_password}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_password}
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - sna_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sna_network
+
+  # ==========================================================
+  # FRONTEND - React (Vite dev server, TypeScript + Tailwind)
+  # ==========================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sna_frontend
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    environment:
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8080/api}
+      - CHOKIDAR_USEPOLLING=true
+    command: npm run dev -- --host 0.0.0.0
+    depends_on:
+      - web
+    networks:
+      - sna_network
+
+  # ==========================================================
+  # OPTIONAL - Adminer (GUI ringan untuk cek database via browser)
+  # ==========================================================
+  adminer:
+    image: adminer:latest
+    container_name: sna_adminer
+    restart: unless-stopped
+    ports:
+      - "${ADMINER_PORT:-8081}:8080"
+    depends_on:
+      - db
+    networks:
+      - sna_network
+
+networks:
+  sna_network:
+    driver: bridge
+
+volumes:
+  sna_db_data:
+    driver: local
